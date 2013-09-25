@@ -34,7 +34,7 @@ import atexit # for running things at exit
 def myexit():
 	
 	# Tell children to end
-	MPI_done()	
+	if is_master_process(): MPI_done()	
 	
 	global out
 	if out is not None: out.close() # close this -- meaning the subprocess is told to stop 
@@ -111,6 +111,8 @@ def capture_slaves(outfile=None):
 		worker_process(outfile=outfile)
 
 def MPI_done():
+	assert is_master_process()
+	
 	# Tell all to exit from this map (Not exit overall)
 	for i in range(1,size): 
 		#dprinterr(25, "# Master calling exit on ", i)
