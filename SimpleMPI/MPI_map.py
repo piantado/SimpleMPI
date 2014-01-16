@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-
+	TODO: Maybe we have to have MPI_done wait until the children have officially exited?
+	
 	The MPI interface for python mapping
 	
 	Slave processes are caught either by calling capture_slaves(), or the first time you call MPI_map. In either case, they wait around indefinitely until told to exit
 	
 """
+
 
 from mpi4py import MPI
 import random
@@ -36,11 +38,13 @@ def myexit():
 	# Tell children to end
 	if is_master_process(): MPI_done()	
 	
+	## TODO: By telling children to exit, it may take a while for them to finish..
+	
 	global out
 	if out is not None: out.close() # close this -- meaning the subprocess is told to stop 
 	
 	if not MPI.Is_finalized(): 
-		MPI.Finalize()		
+		MPI.Finalize()	
 atexit.register(myexit)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -59,8 +63,12 @@ def synchronize_variable(f):
 		So in our code, we can say 
 		
 		y = synchornize_variable( lambda : random.random())
+		
+		this only evals the function on the master_node, and then synchronizes to everyone else
 	"""
-	if rank == MASTER_PROCESS:
+	if size ==1:
+		return f() 
+	elif rank == MASTER_PROCESS:
 		ret = f() # evaluate
 		for i in xrange(size): # send this to each process
 			if i != MASTER_PROCESS: comm.send( ret, dest=i, tag=SYNCHRONIZE_TAG)
@@ -84,6 +92,7 @@ def worker_process(outfile=None):
 		out = ParallelBufferedIO(outfile)
 	
 	while True:
+		
 		# test for the exit code
 		if comm.Iprobe(source=MASTER_PROCESS, tag=EXIT_TAG):
 			comm.recv(source=MASTER_PROCESS, tag=EXIT_TAG)
@@ -94,8 +103,12 @@ def worker_process(outfile=None):
 			f, i, a = comm.recv(source=MASTER_PROCESS, tag=RUN_TAG) # get our next job
 			#dprintn(100, rank, " received ", i, a)
 			r = f(*a)
-			if outfile is not None: out.write(*r) # non-blocking write to a file if we want it
-			comm.send([i, r], dest=MASTER_PROCESS, tag=RUN_TAG) # send a message that we've finished	
+			
+			if outfile is not None: 
+				out.write(*r) # non-blocking write to a file if we want it
+			
+			# send a message that we've finished
+			comm.send([i, r], dest=MASTER_PROCESS, tag=RUN_TAG) 	
 	
 	if outfile is not None:
 		out.close()
@@ -116,48 +129,54 @@ def MPI_done():
 	# Tell all to exit from this map (Not exit overall)
 	for i in range(1,size): 
 		#dprinterr(25, "# Master calling exit on ", i)
-		comm.send(None, dest=i, tag=EXIT_TAG) 
+		comm.send(None, dest=i, tag=EXIT_TAG)
 		
 
 # Let's make a new kind, where we spawn up to the length in order to process, each time we see an MPI_map
 #http://mpi4py.scipy.org/docs/usrman/tutorial.html
-def MPI_map(f, args, random_order=True, outfile=None, mpi_done=False):
+def MPI_map(f, args, random_order=True, outfile=None, mpi_done=False, yieldfrom=False):
 	"""
 		Execute, in parallel, a function on each argument, and return the list [x1, f(x1)], [x2, f(x2)].
 		
 		f -- the function. Must be defined using "def" (not lambda) or else the slaves can't see it
 		args -- a list of arguments to apply f to
 		random_order - should we evaluate in a randomized order (in order to keep progress bar honest)
-		outfile - should reuslts be printed nicely in paralle ot outfile?
+		outfile - should reuslts be printed nicely in parallel to outfile?
 		mpi_done - if True, we tell all subprocesses to die. This is handy if you only have one MPI_map, and
 		therefore don't need the processes again
+		# yieldfrom - if True, we yield each individual response NOTE TODO: CURRENTLY NOT IMPLEMENTED
 	"""
 	global size
-	
+
 	if size == 1: 
 		print "# *** NOTE: 'MPI_map' running as 'map' since size=1!"
 		return map(lambda x: f( *listifnot(x)), args)
-		
+
+	# calling this is a sink that all slave processes fall into, waiting
+	capture_slaves(outfile)
+	
 	arglen = len(args)
 	started_count = 0 # how many things do we need to get back?
 	completed_count = 0
-	ind = range(arglen)
-	ret = [None]*arglen # the return values
 	running = [False]*size  # which processes are running?
+	ind = range(arglen)
 	
+	#if not yieldfrom:
+	ret = [None]*arglen # the return values
+		
 	if random_order: random.shuffle(ind)
-	
-	# calling this is a sink that all slave processes fall into, waiting
-	capture_slaves(outfile)
 	
 	# Now only the master process survives:
 	try:
 		draw_progress(float(completed_count)/float(arglen)) # Just to draw it to start
 		
 		while completed_count < arglen:
-			for i in range(1,min(size,arglen),1): # run at most the number of arguments in parallel
+			
+			#print size, arglen, completed_count, range(1,min(size,arglen+1),1)
+			for i in range(1,min(size,arglen+1),1): # run at most the number of arguments in parallel
+				
 				if (not running[i]) and (started_count < arglen):
-					#dprintn(100, "# Main sending ", args[ind[started_count]], " to ", i)
+					#print "# Main sending ", args[ind[started_count]], " to ", i
 					comm.send( [f, ind[started_count],  listifnot(args[ind[started_count]]) ], dest=i, tag=RUN_TAG)
 					started_count += 1
 					running[i] = True
@@ -166,25 +185,57 @@ def MPI_map(f, args, random_order=True, outfile=None, mpi_done=False):
 					draw_progress(float(completed_count)/float(arglen))
 					
 					ri, r = comm.recv(source=i, tag=RUN_TAG) # get the message
+					#if yieldfrom: yield [ args[ind[ri]] , r] # return the args, and the response
+					#else:         ret[ri] = r # save it
 					ret[ri] = r # save it
 					running[i] = False # so we send it a new job
 				
 		# if we don't need the slave processes anymore
 		if mpi_done: MPI_done()			
 	except: 
+		print "EXCEPTION"
 		MPI_done() # shut down everyone (on, e.g., interrupt, etc)
 		raise
 	
 	print >>sys.stderr, "\n" # since we drew the progress bar!
+	
+	#if not yieldfrom:
 	return ret
-
+	
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#def MPI_decorate(f, N, args=None):
+	#"""
+		#A cute MPI function decorator. This makes function calls get executed N times in parallel over MPI,
+		#returning the relevant list.
+		
+		#@MPI_decorate(100)
+		#def run_one(x=1, y=2):
+			#return x+y
+			
+		#Then
+		
+		#v = run_one()
+		
+		#will have v = [3 3 3 .... 3]
+		
+		#NOTE TODO: This is cute but may lead to unreadable code? 
+	#"""
+	
+	#if args is None: args = [ [] ] * N
+	
+	#return MPI_map(f, args)
+	
 
 if __name__=="__main__":
+	# mpiexec -n 36 -configfile ../../LOTlib/hosts.mpich2 python test-mpi.py
+		
+	#  a somewhat hard math problem
+	def f(i): return [i, i ** 15000]
 	
-	def f(i):
-		return [i, i ** 15000]
+	## Run a few maps:
+	r = MPI_map(f, map(lambda x: x, range(1500)))
+	assert len(r) == 1500	
 	
-	# Run a few maps:
 	MPI_map(f, map(lambda x: [x], range(1500)))
 	
 	MPI_map(f, map(lambda x: [x+x], range(1500)))

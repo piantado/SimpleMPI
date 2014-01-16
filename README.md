@@ -40,3 +40,7 @@ You can put this into your .bashrc file to make it loaded automatically when you
 	echo 'export PYTHONPATH=$PYTHONPATH:/home/piantado/Desktop/Libraries/SimpleMPI' >> ~/.bashrc
 
 And you should be ready to use the library
+
+TODO:
+=============
+This still has some dependencies with LOTlib (e.g. dprintn) which should be removed!

@@ -1,3 +1,9 @@
+"""
+	TODO: Right now, this creates a whole copy of the existing data. That's bad for big data projects, and unnecessary. 
+	      Figure out how to do it right, so this is just a writer!
+"""
+
+
 from multiprocessing import Process, Queue, current_process
 from lockfile import FileLock, LockFailed
 import os
@@ -49,7 +55,8 @@ class ParallelBufferedIO:
 							return
 						else: # this
 							for xi in x: print >>o, xi,
-							print >>o, "\n",
+							# No newline by default now
+							#print >>o, "\n",
 				lock.release()
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 if __name__=="__main__":
