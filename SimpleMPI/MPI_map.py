@@ -163,7 +163,8 @@ def MPI_map(f, args, random_order=True, outfile=None, mpi_done=False, yieldfrom=
 	
 	#if not yieldfrom:
 	ret = [None]*arglen # the return values
-		
+	
+	# Randomize the order (useful for timing)
 	if random_order: random.shuffle(ind)
 	
 	# Now only the master process survives:

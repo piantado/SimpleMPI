@@ -1,6 +1,5 @@
 """
-	TODO: Right now, this creates a whole copy of the existing data. That's bad for big data projects, and unnecessary. 
-	      Figure out how to do it right, so this is just a writer!
+	NOTE: Subprocesses only exit correctly when closed!
 """
 
 
@@ -8,6 +7,7 @@ from multiprocessing import Process, Queue, current_process
 from lockfile import FileLock, LockFailed
 import os
 import time
+import signal
 
 DELAY_TIME = 0.1 # How long do I sleep between trying to access the file?
 
@@ -27,6 +27,10 @@ class ParallelBufferedIO:
 		self.Q = Queue()
 		self.printing_process = Process(target=self.subprocess_loop, args=[])
 		self.printing_process.start()
+		
+		# make sure we close on exit
+		signal.signal(signal.SIGINT, self.close ) 
+
 		
 	def write(self,*args):
 		self.Q.put(args)
