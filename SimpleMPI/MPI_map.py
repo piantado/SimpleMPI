@@ -29,6 +29,13 @@ size = comm.Get_size()
 rank = comm.Get_rank()
 out = None
 
+def get_size(): 
+	global size
+	return size
+def get_rank():
+	global rank
+	return rank
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Make sure we always finalize when we exit, or else all hell breaks loose, with loose MPI threads hanging around
 # IT is much better to call MPI_done(), but this catches things just in case we don't
@@ -51,7 +58,11 @@ atexit.register(myexit)
 
 
 def is_master_process():
-	return rank == MASTER_PROCESS
+	"""
+	You are master if you are size=0 (not in MPI) or the master process
+	"""
+	
+	return (size==0) or (rank == MASTER_PROCESS)
 
 def listifnot(x):
 	if isinstance(x,list): return x
@@ -134,7 +145,7 @@ def MPI_done():
 
 # Let's make a new kind, where we spawn up to the length in order to process, each time we see an MPI_map
 #http://mpi4py.scipy.org/docs/usrman/tutorial.html
-def MPI_map(f, args, random_order=True, outfile=None, mpi_done=False, yieldfrom=False):
+def MPI_map(f, args, random_order=True, outfile=None, mpi_done=False, yieldfrom=False, progress_bar=True):
 	"""
 		Execute, in parallel, a function on each argument, and return the list [x1, f(x1)], [x2, f(x2)].
 		
@@ -169,7 +180,7 @@ def MPI_map(f, args, random_order=True, outfile=None, mpi_done=False, yieldfrom=
 	
 	# Now only the master process survives:
 	try:
-		draw_progress(float(completed_count)/float(arglen)) # Just to draw it to start
+		if progress_bar: draw_progress(float(completed_count)/float(arglen)) # Just to draw it to start
 		
 		while completed_count < arglen:
 			
@@ -183,7 +194,7 @@ def MPI_map(f, args, random_order=True, outfile=None, mpi_done=False, yieldfrom=
 					running[i] = True
 				if comm.Iprobe(source=i, tag=RUN_TAG): # test for a message
 					completed_count += 1 # we've gotten back one more
-					draw_progress(float(completed_count)/float(arglen))
+					if progress_bar: draw_progress(float(completed_count)/float(arglen))
 					
 					ri, r = comm.recv(source=i, tag=RUN_TAG) # get the message
 					#if yieldfrom: yield [ args[ind[ri]] , r] # return the args, and the response

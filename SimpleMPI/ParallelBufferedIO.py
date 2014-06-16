@@ -34,6 +34,10 @@ class ParallelBufferedIO:
 		
 	def write(self,*args):
 		self.Q.put(args)
+	def writen(self,*args):
+		args = list(args)
+		args.extend("\n")
+		self.Q.put(args)
 		
 	def close(self):
 		self.Q.put(None)
