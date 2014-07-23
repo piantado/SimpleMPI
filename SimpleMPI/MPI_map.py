@@ -6,6 +6,8 @@
 	
 	Slave processes are caught either by calling capture_slaves(), or the first time you call MPI_map. In either case, they wait around indefinitely until told to exit
 	
+	It is not currently possible to return slaves from MPI_map
+	
 """
 
 

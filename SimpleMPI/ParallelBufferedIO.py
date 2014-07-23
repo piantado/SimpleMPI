@@ -8,6 +8,7 @@ from lockfile import FileLock, LockFailed
 import os
 import time
 import signal
+import atexit
 
 DELAY_TIME = 0.1 # How long do I sleep between trying to access the file?
 
@@ -30,6 +31,9 @@ class ParallelBufferedIO:
 		
 		# make sure we close on exit
 		signal.signal(signal.SIGINT, self.close ) 
+		
+		# and set  this to close on exiting, so that we don't hang
+		atexit.register(self.close)
 
 		
 	def write(self,*args):
@@ -52,6 +56,7 @@ class ParallelBufferedIO:
 		lock = FileLock(self.path)
 		
 		while True:
+			
 			time.sleep(DELAY_TIME)
 			if (not self.Q.empty()):
 				lock.acquire() # get the lock (or wait till we do)
@@ -71,9 +76,24 @@ if __name__=="__main__":
 	
 	## Can run this with: mpiexec -n 10 python ParallelBufferedIO.py
 	
+	
+	#bo = ParallelBufferedIO("/tmp/pbio.txt")
+	#bo.write("Hi there", "pal!")
+	#bo.close()
+	
+	
+	
+	from SimpleMPI.MPI_map import MPI_map, MPI_done, rank
+	#print "!!", rank, "Open BO"
 	bo = ParallelBufferedIO("/tmp/pbio.txt")
-	bo.write("Hi there", "pal!")
+	def f(a):
+		bo.writen("hi there")
+	#print "!!", rank, "Mapping"
+	MPI_map(f, [0] * 3, progress_bar=False)
+	#print "!!", rank, "Done MAP"
+	#print "!!", rank, "Closing"
 	bo.close()
+	#print "!!", rank, "Closed"
 	
 	#quit()
 	
