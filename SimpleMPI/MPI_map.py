@@ -15,6 +15,10 @@ from ProgressBar import draw_progress
 from ParallelBufferedIO import ParallelBufferedIO
 import sys
 
+# Which dumps to use?
+#from pickle import dumps # No lambda support
+from cloud.serialization.cloudpickle import dumps
+
 # Tags for message passing
 SYNCHRONIZE_TAG = 0x2
 EXIT_TAG = 0x1
@@ -73,7 +77,7 @@ def synchronize_variable(f):
 		Evaluate f on the head node to yield a variable value, and then send that to everything. 
 		So in our code, we can say 
 		
-		y = synchornize_variable( lambda : random.random())
+		y = synchronize_variable( lambda : random.random())
 		
 		this only evals the function on the master_node, and then synchronizes to everyone else
 	"""

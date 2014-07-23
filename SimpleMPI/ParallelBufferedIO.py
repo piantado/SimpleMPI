@@ -75,6 +75,6 @@ if __name__=="__main__":
 	bo.write("Hi there", "pal!")
 	bo.close()
 	
-	quit()
+	#quit()
 	
 	
