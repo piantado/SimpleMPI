@@ -18,8 +18,8 @@ from ParallelBufferedIO import ParallelBufferedIO
 import sys
 
 # Which dumps to use?
-#from pickle import dumps # No lambda support
-from cloud.serialization.cloudpickle import dumps
+from pickle import dumps # No lambda support
+#from cloud.serialization.cloudpickle import dumps
 
 # Tags for message passing
 SYNCHRONIZE_TAG = 0x2
@@ -215,7 +215,7 @@ def MPI_map(f, args, random_order=True, outfile=None, mpi_done=False, yieldfrom=
 		MPI_done() # shut down everyone (on, e.g., interrupt, etc)
 		raise
 	
-	print >>sys.stderr, "\n" # since we drew the progress bar!
+	if progress_bar: print >>sys.stderr, "\n" # since we drew the progress bar!
 	
 	#if not yieldfrom:
 	return ret
